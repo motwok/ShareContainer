@@ -114,7 +114,7 @@ def test_shadow(fs):
     assert accounts.shadow_hash("alice") == "$6$y"
     with pytest.raises(accounts.AccountError):
         accounts.shadow_hash("bob")
-    os.makedirs(os.path.dirname(paths.SSH_SHADOW))
+    os.makedirs(paths.STATE)
     accounts.write_shadow({"b": "2", "a": "1"})
     assert open(paths.SSH_SHADOW).read() == "a:1\nb:2\n"
     assert accounts.read_shadow() == {"a": "1", "b": "2"}

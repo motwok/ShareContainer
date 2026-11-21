@@ -73,6 +73,7 @@ def read_shadow():
 
 def write_shadow(hashes):
     text = "".join(f"{n}:{h}\n" for n, h in sorted(hashes.items()))
+    sysops.make_dir(paths.SSH_STATE, 0o711)
     sysops.write_file(paths.SSH_SHADOW, text, 0o600)
 
 
