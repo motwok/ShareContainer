@@ -100,10 +100,10 @@ def test_keys_loads_config(monkeypatch):
 
 def test_services(cfg):
     names = [s.name for s in start.services(cfg)]
-    assert names == ["smbd", "sshd", "apache", "metrics"]
+    assert names == ["smbd", "sshd", "apache", "metrics", "addresses"]
     cfg.smb.netbios = cfg.smb.wsd = cfg.smb.mdns = True
     cfg.metrics.enabled = False
-    assert [s.name for s in start.services(cfg)] == ["smbd", "nmbd", "wsdd2", "avahi", "sshd", "apache"]
+    assert [s.name for s in start.services(cfg)] == ["smbd", "nmbd", "wsdd2", "avahi", "sshd", "apache", "addresses"]
     cfg.smb.enabled = cfg.ssh.enabled = cfg.webdav.enabled = False
     assert start.services(cfg) == []
 
@@ -141,8 +141,9 @@ def test_main(cfg, monkeypatch, fs):
     cfg.interfaces[0].dhcp = True
     monkeypatch.setattr(network, "dhcp_command", lambda c, i: ["udhcpc", i])
     monkeypatch.setattr(network, "wait_for_lease", lambda i: f"{i}:lease")
+    monkeypatch.setattr(network, "wait_for_ipv6", lambda i: [])
     assert start.main(run=lambda s, dhcp_wait, wait_after: got.update(s=s, w=dhcp_wait, n=wait_after) or 0) == 0
-    assert got["s"][0].name == "udhcpc-eth0" and got["w"]() == ["eth0:lease"] and got["n"] == 1
+    assert got["s"][0].name == "udhcpc-eth0" and got["w"]() == [("eth0:lease", [])] and got["n"] == 1
 
     def broken(c):
         raise network.NetworkError("no eth0")
@@ -172,6 +173,8 @@ def test_cli(monkeypatch, capsys, cfg):
     assert cli.main(["ssh-command"]) == 1 and cli.main(["davauth"]) == 0
     monkeypatch.setattr(cli.network, "dhcp_event", lambda e, env: 7 if e == "bound" else 8)
     assert cli.main(["dhcp-event", "bound"]) == 7 and cli.main(["dhcp-event"]) == 8
+    monkeypatch.setattr(cli.network, "watch", lambda a: len(a))
+    assert cli.main(["watch-addresses", "eth0", "eth1"]) == 2
     assert cli.main(["nonsense"]) == 2
     monkeypatch.setattr(credentials, "passwd", lambda a: (_ for _ in ()).throw(UsageError("u")))
     assert cli.main(["passwd"]) == 2
