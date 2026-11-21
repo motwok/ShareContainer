@@ -108,8 +108,8 @@ check "webdav: backup not served (401/404)" sh -c "c=\$(docker exec sc-client cu
 check "webdav: PROPFIND" test "$(dav "-u alice:alicepw -X PROPFIND -H 'Depth: 1' http://sc:8080/data/")" = 207
 
 # Metrics and restart
-check "metrics answer" sh -c "docker exec sc-client curl -s http://sc:9482/metrics | grep -q '^sharecontainer_up 1'"
-check "metrics count sessions" sh -c "docker exec sc-client curl -s http://sc:9482/metrics | grep -q '^sharecontainer_smb_sessions'"
+check "metrics answer" sh -c "docker exec sc-client curl -s http://sc:9483/metrics | grep -q '^sharecontainer_up 1'"
+check "metrics count sessions" sh -c "docker exec sc-client curl -s http://sc:9483/metrics | grep -q '^sharecontainer_smb_sessions'"
 docker restart sc >/dev/null
 sleep 8
 check "after restart: passwords still valid" client "smbclient //sc/data -U alice%alicepw -c ls"
