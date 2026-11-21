@@ -36,6 +36,8 @@ def dhcpcd_conf(cfg):
         "option rapid_commit",
         "require dhcp_server_identifier",
         "noipv4ll",
+        # IPv6 comes from the kernel (SLAAC): dhcpcd would write /proc/sys, read-only in containers.
+        "noipv6",
         "nohook resolv.conf, hostname",
         "",
     ])
@@ -43,7 +45,7 @@ def dhcpcd_conf(cfg):
 
 def dhcpcd_command(cfg):
     sysops.write_file(paths.DHCPCD_CONF, dhcpcd_conf(cfg))
-    return ["dhcpcd", "-B", "-f", paths.DHCPCD_CONF] + dhcp_interfaces(cfg)
+    return ["dhcpcd", "-B", "-4", "-f", paths.DHCPCD_CONF] + dhcp_interfaces(cfg)
 
 
 def wait_for_lease(iface, before, timeout=60, sleep=time.sleep, clock=time.monotonic):

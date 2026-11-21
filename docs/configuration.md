@@ -115,7 +115,7 @@ networks the container's (`eth0`).
 |---|---|---|
 | `name` | required | Interface name. |
 | `speed` | required | Link speed in bit/s, reported to SMB clients (for a 4 x 1 GbE bond: `4000000000`). |
-| `dhcp` | `false` | Take the address from the LAN's DHCP server (macvlan only, needs `NET_ADMIN`, see the README). |
+| `dhcp` | `false` | Take the IPv4 address from the LAN's DHCP server (macvlan only, needs `NET_ADMIN`, see the README); IPv6 by SLAAC. |
 
 Samba listens only on these interfaces.
 

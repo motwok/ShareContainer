@@ -9,6 +9,11 @@ services:
     mac_address: "02:42:c0:00:02:14"
     cap_add:
       - NET_ADMIN        # DHCP mode only
+    sysctls:
+      # IPv6 by SLAAC from the router (DHCPv6 is not used).
+      net.ipv6.conf.all.disable_ipv6: 0
+      net.ipv6.conf.eth0.accept_ra: 2
+      net.ipv6.conf.eth0.autoconf: 1
     networks:
       - lan
     volumes:

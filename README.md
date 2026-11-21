@@ -76,7 +76,9 @@ How to get the full bandwidth (flow control, connection count) and a measurement
 - **macvlan with DHCP** ([example](examples/compose-macvlan-dhcp.yaml)): set `dhcp: true` on the
   interface and add `NET_ADMIN`. The container sends its name to the DHCP server and does not start
   without a lease.
-- IPv6 is served where the network provides it.
+- IPv6 is served where the network provides it. In DHCP mode the container takes its IPv6 address by
+  SLAAC from the router's advertisements (set the `sysctls` of the
+  [example](examples/compose-macvlan-dhcp.yaml)); DHCPv6 is not used.
 
 | Port | Protocol | When |
 |---|---|---|
