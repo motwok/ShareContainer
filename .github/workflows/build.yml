@@ -76,6 +76,8 @@ jobs:
         id: changed
         run: |
           last=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          # The first release is 0.1.0; later versions come from the PR labels.
+          [ -n "$last" ] || echo "initial=0.1.0" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" = workflow_dispatch ]; then echo "release=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           if [ -z "$last" ] || ! git diff --quiet "$last" HEAD -- src bin Dockerfile; then
             echo "release=true" >> "$GITHUB_OUTPUT"
@@ -90,6 +92,7 @@ jobs:
         uses: release-drafter/release-drafter@v7
         with:
           config-name: release-drafter.yml
+          version: ${{ steps.changed.outputs.initial }}
           publish: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
