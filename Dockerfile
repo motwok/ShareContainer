@@ -7,7 +7,7 @@ RUN apt-get update \
       samba samba-vfs-modules \
       openssh-server openssh-sftp-server rsync borgbackup borgbackup2 \
       apache2 libapache2-mpm-itk \
-      avahi-daemon wsdd2 dhcpcd-base iproute2 acl \
+      avahi-daemon wsdd2 udhcpc iproute2 acl \
       python3 python3-yaml python3-bcrypt \
  && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* /etc/avahi/services/* \
  && rm -f /etc/samba/smb.conf \

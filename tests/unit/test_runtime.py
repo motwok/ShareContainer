@@ -201,16 +201,32 @@ def test_network(cfg, rec, fs):
     assert network.ipv4("eth0") == ["10.0.0.5/24"]
     cfg.interfaces[0].dhcp = True
     assert network.dhcp_interfaces(cfg) == ["eth0"]
-    network.check_sysctls(cfg, read=lambda p, d: "1\n")
-    with pytest.raises(network.NetworkError, match="promote_secondaries: 1"):
-        network.check_sysctls(cfg, read=lambda p, d: "0\n")
-    with pytest.raises(network.NetworkError):
-        network.check_sysctls(cfg, read=lambda p, d: None)
-    os.makedirs(paths.RUN)
-    assert network.dhcpcd_command(cfg)[-1] == "eth0"
-    assert "hostname FS" in open(paths.DHCPCD_CONF).read()
+    assert network.dhcp_command(cfg, "eth0")[:5] == ["udhcpc", "-f", "-R", "-i", "eth0"]
+    assert "hostname:FS" in network.dhcp_command(cfg, "eth0")
     assert network.wait_for_lease("eth0", ["10.0.0.9/24"]) == "10.0.0.5/24"
     assert (["ip", "addr", "del", "10.0.0.9/24", "dev", "eth0"], None) in rec.calls
     t = iter(range(100))
     with pytest.raises(network.NetworkError, match="no DHCP answer"):
         network.wait_for_lease("eth0", ["10.0.0.5/24"], timeout=3, sleep=lambda s: None, clock=lambda: next(t))
+
+
+def test_dhcp_event(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sysops, "log", lambda m: calls.append(m))
+
+    def run(cmd):
+        calls.append(cmd)
+    env = {"interface": "eth0", "ip": "10.1.2.3", "subnet": "255.255.255.0", "router": "10.1.2.1 10.1.2.254"}
+    assert network.dhcp_event("bound", env, run) == 0
+    assert ["ip", "addr", "replace", "10.1.2.3/24", "dev", "eth0"] in calls
+    assert ["ip", "route", "replace", "default", "via", "10.1.2.1", "dev", "eth0"] in calls
+    calls.clear()
+    network.dhcp_event("renew", dict(env, router=""), run)
+    assert not any(isinstance(c, list) and c[:2] == ["ip", "route"] for c in calls)
+    network.dhcp_event("nak", {"interface": "eth0", "message": "no"}, run)
+    network.dhcp_event("leasefail", {}, run)
+    network.dhcp_event("deconfig", env, run)
+    assert calls[-2:] == ["eth0: DHCP nak no", ": DHCP leasefail"]
+    monkeypatch.setattr(sysops, "run", lambda cmd: calls.append(("default", cmd)))
+    network.dhcp_event("bound", env)
+    assert ("default", ["ip", "addr", "replace", "10.1.2.3/24", "dev", "eth0"]) in calls

@@ -12,7 +12,7 @@ Third-party components
 
 The image contains Samba (https://www.samba.org), GNU GPL v3 license,
 Copyright The Samba Team, further distribution packages (e.g. OpenSSH, Apache
-HTTP Server, mpm-itk, rsync, Borg, Avahi, wsdd2, dhcpcd)
+HTTP Server, mpm-itk, rsync, Borg, Avahi, wsdd2, udhcpc)
 and the packages of its base image (Debian), each under its own
 license. The source code of these packages is available from the Debian
 package archive (https://sources.debian.org) in the versions contained in the

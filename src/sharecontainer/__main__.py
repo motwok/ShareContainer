@@ -1,8 +1,9 @@
 """Command line: run, check, passwd, keys, health, metrics, ssh-command, davauth."""
 
+import os
 import sys
 
-from . import config, credentials, davauth, metrics, paths, sshcmd, start, supervisor
+from . import config, credentials, davauth, metrics, network, paths, sshcmd, start, supervisor
 
 USAGE = """usage: sharecontainer COMMAND
   run                      start the container (default)
@@ -39,6 +40,8 @@ def main(argv=None):
             return sshcmd.main()
         if cmd == "davauth":
             return davauth.main()
+        if cmd == "dhcp-event":
+            return network.dhcp_event(args[0] if args else "", os.environ)
     except config.ConfigError as e:
         for err in e.errors:
             print(err, file=sys.stderr)

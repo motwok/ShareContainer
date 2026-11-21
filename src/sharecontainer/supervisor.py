@@ -32,8 +32,9 @@ def start(service, popen=subprocess.Popen):
     return popen(service.cmd, preexec_fn=pre)
 
 
-def run(services, dhcp_wait=None, popen=subprocess.Popen, waitpid=os.waitpid, sig=signal.signal):
-    """Returns the exit code of the container. dhcp_wait runs after the first service (dhcpcd) started."""
+def run(services, dhcp_wait=None, wait_after=1, popen=subprocess.Popen, waitpid=os.waitpid, sig=signal.signal):
+    """Returns the exit code of the container; dhcp_wait runs once the first wait_after services (the DHCP
+    clients) started."""
     sig(signal.SIGTERM, _stop)
     sig(signal.SIGINT, _stop)
     procs = {}
@@ -41,7 +42,7 @@ def run(services, dhcp_wait=None, popen=subprocess.Popen, waitpid=os.waitpid, si
     try:
         for i, s in enumerate(services):
             procs[start(s, popen).pid] = s
-            if i == 0 and dhcp_wait:
+            if i == wait_after - 1 and dhcp_wait:
                 dhcp_wait()
         write_health(procs)
         while True:

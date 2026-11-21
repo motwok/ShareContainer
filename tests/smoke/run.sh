@@ -129,7 +129,7 @@ docker run -d --name sc-dnsmasq --network sc-dhcpnet --cap-add NET_ADMIN sc-smok
   dnsmasq -d --port=0 --dhcp-range=172.31.250.200,172.31.250.220,1h --log-dhcp >/dev/null
 printf 'server:\n  name: SCDHCP\nnetwork:\n  interfaces:\n    - name: eth0\n      speed: 1000000000\n      dhcp: true\nsmb:\n  enabled: true\nmetrics:\n  enabled: false\n' > "$WORK/dhcp.yaml"
 for i in $(seq 1 30); do docker logs sc-dnsmasq 2>&1 | grep -q "DHCP, IP range" && break; sleep 1; done
-docker run -d --name sc-dhcp --network sc-dhcpnet --cap-add NET_ADMIN   --sysctl net.ipv4.conf.eth0.promote_secondaries=1 -v "$WORK/dhcp.yaml:/config/share.yaml:ro" "$IMAGE" >/dev/null
+docker run -d --name sc-dhcp --network sc-dhcpnet --cap-add NET_ADMIN -v "$WORK/dhcp.yaml:/config/share.yaml:ro" "$IMAGE" >/dev/null
 for i in $(seq 1 40); do docker logs sc-dhcp 2>&1 | grep -q "DHCP address" && break; sleep 2; done
 dhcpfail=$FAILED
 check "dhcp: lease from the DHCP server" sh -c "docker logs sc-dhcp 2>&1 | grep -q 'DHCP address 172.31.250.2'"

@@ -136,15 +136,14 @@ def test_main(cfg, monkeypatch, fs):
     monkeypatch.setattr(network, "check_interfaces", lambda c: None)
     monkeypatch.setattr(start, "prepare", lambda c: None)
     got = {}
-    assert start.main(run=lambda s, dhcp_wait: got.update(s=s, w=dhcp_wait) or 0) == 0
-    assert got["w"] is None and got["s"][0].name == "smbd"
+    assert start.main(run=lambda s, dhcp_wait, wait_after: got.update(s=s, w=dhcp_wait, n=wait_after) or 0) == 0
+    assert got["w"] is None and got["s"][0].name == "smbd" and got["n"] == 0
     cfg.interfaces[0].dhcp = True
     monkeypatch.setattr(network, "ipv4", lambda i: ["1.2.3.4/24"])
-    monkeypatch.setattr(network, "check_sysctls", lambda c: None)
-    monkeypatch.setattr(network, "dhcpcd_command", lambda c: ["dhcpcd"])
+    monkeypatch.setattr(network, "dhcp_command", lambda c, i: ["udhcpc", i])
     monkeypatch.setattr(network, "wait_for_lease", lambda i, b: f"{i}:{b}")
-    assert start.main(run=lambda s, dhcp_wait: got.update(s=s, w=dhcp_wait) or 0) == 0
-    assert got["s"][0].name == "dhcpcd" and got["w"]() == ["eth0:['1.2.3.4/24']"]
+    assert start.main(run=lambda s, dhcp_wait, wait_after: got.update(s=s, w=dhcp_wait, n=wait_after) or 0) == 0
+    assert got["s"][0].name == "udhcpc-eth0" and got["w"]() == ["eth0:['1.2.3.4/24']"] and got["n"] == 1
 
     def broken(c):
         raise network.NetworkError("no eth0")
@@ -167,6 +166,8 @@ def test_cli(monkeypatch, capsys, cfg):
     monkeypatch.setattr(cli.sshcmd, "main", lambda: 1)
     monkeypatch.setattr(cli.davauth, "main", lambda: 0)
     assert cli.main(["ssh-command"]) == 1 and cli.main(["davauth"]) == 0
+    monkeypatch.setattr(cli.network, "dhcp_event", lambda e, env: 7 if e == "bound" else 8)
+    assert cli.main(["dhcp-event", "bound"]) == 7 and cli.main(["dhcp-event"]) == 8
     assert cli.main(["nonsense"]) == 2
     monkeypatch.setattr(credentials, "passwd", lambda a: (_ for _ in ()).throw(UsageError("u")))
     assert cli.main(["passwd"]) == 2

@@ -74,11 +74,11 @@ How to get the full bandwidth (flow control, connection count) and a measurement
 - **macvlan with an address from Docker** ([example](examples/compose-macvlan.yaml)): the container has
   its own address on the LAN. The Docker host itself cannot reach it over the macvlan parent.
 - **macvlan with DHCP** ([example](examples/compose-macvlan-dhcp.yaml)): set `dhcp: true` on the
-  interface, add `NET_ADMIN` and the sysctl `net.ipv4.conf.<interface>.promote_secondaries: 1`. The container sends its name to the DHCP server and does not start
+  interface and add `NET_ADMIN`. The container sends its name to the DHCP server and does not start
   without a lease.
-- IPv6 is served where the network provides it. In DHCP mode the container takes its IPv6 address by
-  SLAAC from the router's advertisements (set the `sysctls` of the
-  [example](examples/compose-macvlan-dhcp.yaml)); DHCPv6 is not used.
+- IPv6 is served where the network provides it: with an address from Docker (`enable_ipv6` on the
+  network) or, in DHCP mode, by SLAAC from the router if Docker lets the interface accept router
+  advertisements. DHCPv6 is not used.
 
 | Port | Protocol | When |
 |---|---|---|
