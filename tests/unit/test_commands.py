@@ -139,11 +139,10 @@ def test_main(cfg, monkeypatch, fs):
     assert start.main(run=lambda s, dhcp_wait, wait_after: got.update(s=s, w=dhcp_wait, n=wait_after) or 0) == 0
     assert got["w"] is None and got["s"][0].name == "smbd" and got["n"] == 0
     cfg.interfaces[0].dhcp = True
-    monkeypatch.setattr(network, "ipv4", lambda i: ["1.2.3.4/24"])
     monkeypatch.setattr(network, "dhcp_command", lambda c, i: ["udhcpc", i])
-    monkeypatch.setattr(network, "wait_for_lease", lambda i, b: f"{i}:{b}")
+    monkeypatch.setattr(network, "wait_for_lease", lambda i: f"{i}:lease")
     assert start.main(run=lambda s, dhcp_wait, wait_after: got.update(s=s, w=dhcp_wait, n=wait_after) or 0) == 0
-    assert got["s"][0].name == "udhcpc-eth0" and got["w"]() == ["eth0:['1.2.3.4/24']"] and got["n"] == 1
+    assert got["s"][0].name == "udhcpc-eth0" and got["w"]() == ["eth0:lease"] and got["n"] == 1
 
     def broken(c):
         raise network.NetworkError("no eth0")

@@ -67,11 +67,10 @@ def main(path=paths.CONFIG_FILE, run=supervisor.run):
     try:
         network.check_interfaces(cfg)
         dhcp = network.dhcp_interfaces(cfg)
-        before = {i: network.ipv4(i) for i in dhcp}
         prepare(cfg)
         first = [Service(f"udhcpc-{i}", network.dhcp_command(cfg, i)) for i in dhcp]
     except (network.NetworkError, accounts.AccountError, acls.AclError, sysops.CommandError, OSError) as e:
         sysops.log(f"cannot start: {e}")
         return 1
-    return run(first + services(cfg), dhcp_wait=(lambda: [network.wait_for_lease(i, before[i]) for i in dhcp])
+    return run(first + services(cfg), dhcp_wait=(lambda: [network.wait_for_lease(i) for i in dhcp])
                if dhcp else None, wait_after=len(first))

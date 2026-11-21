@@ -35,31 +35,42 @@ def dhcp_command(cfg, iface):
     return ["udhcpc", "-f", "-R", "-i", iface, "-x", f"hostname:{cfg.name}", "-F", cfg.name, "-s", paths.DHCP_EVENT]
 
 
-def dhcp_event(event, env, run=None):
-    """Called by udhcpc: sets the leased address and the default route; nothing in /proc/sys."""
+def lease_file(iface):
+    return f"{paths.RUN}/dhcp-{iface}.lease"
+
+
+def dhcp_event(event, env, run=None, current=None):
+    """Called by udhcpc: sets the leased address and the default route; nothing in /proc/sys.
+
+    Docker's address goes before the lease is added: with promote_secondaries off, deleting a primary
+    address deletes the secondary addresses of its subnet too.
+    """
     run = run or sysops.run
+    current = current or ipv4
     iface = env.get("interface", "")
     if event in ("bound", "renew"):
         prefix = ipaddress.IPv4Network(f"0.0.0.0/{env['subnet']}").prefixlen
-        run(["ip", "addr", "replace", f"{env['ip']}/{prefix}", "dev", iface])
+        lease = f"{env['ip']}/{prefix}"
+        if current(iface) != [lease]:
+            run(["ip", "-4", "addr", "flush", "dev", iface])
+            run(["ip", "addr", "add", lease, "dev", iface])
         router = (env.get("router") or "").split()
         if router:
             run(["ip", "route", "replace", "default", "via", router[0], "dev", iface])
-        sysops.log(f"{iface}: DHCP {event} {env['ip']}/{prefix}")
+        sysops.write_file(lease_file(iface), lease + "\n")
+        sysops.log(f"{iface}: DHCP {event} {lease}")
     elif event in ("leasefail", "nak"):
         sysops.log(f"{iface}: DHCP {event} {env.get('message', '')}".rstrip())
     return 0
 
 
-def wait_for_lease(iface, before, timeout=60, sleep=time.sleep, clock=time.monotonic):
-    """Waits for a leased IPv4 address, then drops the address Docker assigned."""
+def wait_for_lease(iface, timeout=60, sleep=time.sleep, clock=time.monotonic):
+    """Waits until udhcpc reported a lease through dhcp_event."""
     end = clock() + timeout
     while clock() < end:
-        new = [a for a in ipv4(iface) if a not in before]
-        if new:
-            for a in before:
-                sysops.run(["ip", "addr", "del", a, "dev", iface], check=False)
-            sysops.log(f"{iface}: DHCP address {new[0]}")
-            return new[0]
+        lease = (sysops.read_file(lease_file(iface), "") or "").strip()
+        if lease:
+            sysops.log(f"{iface}: DHCP address {lease}")
+            return lease
         sleep(1)
     raise NetworkError(f"{iface}: no DHCP answer within {timeout} s")

@@ -203,30 +203,34 @@ def test_network(cfg, rec, fs):
     assert network.dhcp_interfaces(cfg) == ["eth0"]
     assert network.dhcp_command(cfg, "eth0")[:5] == ["udhcpc", "-f", "-R", "-i", "eth0"]
     assert "hostname:FS" in network.dhcp_command(cfg, "eth0")
-    assert network.wait_for_lease("eth0", ["10.0.0.9/24"]) == "10.0.0.5/24"
-    assert (["ip", "addr", "del", "10.0.0.9/24", "dev", "eth0"], None) in rec.calls
+    os.makedirs(paths.RUN)
+    open(network.lease_file("eth0"), "w").write("10.0.0.5/24\n")
+    assert network.wait_for_lease("eth0") == "10.0.0.5/24"
+    os.unlink(network.lease_file("eth0"))
     t = iter(range(100))
     with pytest.raises(network.NetworkError, match="no DHCP answer"):
-        network.wait_for_lease("eth0", ["10.0.0.5/24"], timeout=3, sleep=lambda s: None, clock=lambda: next(t))
+        network.wait_for_lease("eth0", timeout=3, sleep=lambda s: None, clock=lambda: next(t))
 
 
-def test_dhcp_event(monkeypatch):
+def test_dhcp_event(monkeypatch, fs):
+    os.makedirs(paths.RUN)
     calls = []
     monkeypatch.setattr(sysops, "log", lambda m: calls.append(m))
 
     def run(cmd):
         calls.append(cmd)
     env = {"interface": "eth0", "ip": "10.1.2.3", "subnet": "255.255.255.0", "router": "10.1.2.1 10.1.2.254"}
-    assert network.dhcp_event("bound", env, run) == 0
-    assert ["ip", "addr", "replace", "10.1.2.3/24", "dev", "eth0"] in calls
+    assert network.dhcp_event("bound", env, run, current=lambda i: ["172.17.0.2/16"]) == 0
+    assert calls[:2] == [["ip", "-4", "addr", "flush", "dev", "eth0"], ["ip", "addr", "add", "10.1.2.3/24", "dev", "eth0"]]
     assert ["ip", "route", "replace", "default", "via", "10.1.2.1", "dev", "eth0"] in calls
+    assert open(network.lease_file("eth0")).read() == "10.1.2.3/24\n"
     calls.clear()
-    network.dhcp_event("renew", dict(env, router=""), run)
-    assert not any(isinstance(c, list) and c[:2] == ["ip", "route"] for c in calls)
+    network.dhcp_event("renew", dict(env, router=""), run, current=lambda i: ["10.1.2.3/24"])
+    assert not any(isinstance(c, list) for c in calls)
     network.dhcp_event("nak", {"interface": "eth0", "message": "no"}, run)
     network.dhcp_event("leasefail", {}, run)
     network.dhcp_event("deconfig", env, run)
     assert calls[-2:] == ["eth0: DHCP nak no", ": DHCP leasefail"]
-    monkeypatch.setattr(sysops, "run", lambda cmd: calls.append(("default", cmd)))
+    monkeypatch.setattr(sysops, "run", lambda cmd, check=True: calls.append(("default", cmd)) or "")
     network.dhcp_event("bound", env)
-    assert ("default", ["ip", "addr", "replace", "10.1.2.3/24", "dev", "eth0"]) in calls
+    assert ("default", ["ip", "addr", "add", "10.1.2.3/24", "dev", "eth0"]) in calls
