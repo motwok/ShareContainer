@@ -53,6 +53,8 @@ def services(cfg):
                            [cfg.webdav.port], umask=0o007))
     if cfg.metrics.enabled:
         out.append(Service("metrics", [CMD, "metrics"], [cfg.metrics.port]))
+    if cfg.smb.enabled:
+        out.append(Service("addresses", [CMD, "watch-addresses"] + [i.name for i in cfg.interfaces]))
     return out
 
 
@@ -73,5 +75,6 @@ def main(path=paths.CONFIG_FILE, run=supervisor.run):
     except (network.NetworkError, accounts.AccountError, acls.AclError, sysops.CommandError, OSError) as e:
         sysops.log(f"cannot start: {e}")
         return 1
-    return run(first + services(cfg), dhcp_wait=(lambda: [network.wait_for_lease(i) for i in dhcp])
+    return run(first + services(cfg),
+               dhcp_wait=(lambda: [(network.wait_for_lease(i), network.wait_for_ipv6(i)) for i in dhcp])
                if dhcp else None, wait_after=len(first))

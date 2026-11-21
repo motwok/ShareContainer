@@ -57,17 +57,71 @@ def dhcp_event(event, env, run=None, current=None):
         router = (env.get("router") or "").split()
         if router:
             run(["ip", "route", "replace", "default", "via", router[0], "dev", iface])
-        previous = (sysops.read_file(lease_file(iface), "") or "").strip()
         sysops.write_file(lease_file(iface), lease + "\n")
         sysops.log(f"{iface}: DHCP {event} {lease}")
-        if previous and previous != lease:
-            # The services listen on the old address: stop smbd, the supervisor stops the container
-            # and Docker's restart policy starts it on the new one.
-            sysops.log(f"{iface}: address changed from {previous}, restarting the container")
-            run(["smbcontrol", "smbd", "shutdown"], check=False)
     elif event in ("leasefail", "nak"):
         sysops.log(f"{iface}: DHCP {event} {env.get('message', '')}".rstrip())
     return 0
+
+
+def global_addresses(iface):
+    """Stable global addresses of iface; temporary, deprecated and tentative ones are left out."""
+    out = sysops.run(["ip", "-o", "addr", "show", "dev", iface, "scope", "global"])
+    addrs = []
+    for line in out.splitlines():
+        f = line.split()
+        if len(f) > 3 and not {"temporary", "deprecated", "tentative"} & set(f):
+            addrs.append(f[3])
+    return sorted(addrs)
+
+
+def ipv6_active(iface, read=sysops.read_file):
+    conf = f"/proc/sys/net/ipv6/conf/{iface}"
+    disabled = (read(f"{conf}/disable_ipv6", "1") or "1").strip()
+    accept_ra = (read(f"{conf}/accept_ra", "0") or "0").strip()
+    return disabled == "0" and accept_ra != "0"
+
+
+def wait_for_ipv6(iface, timeout=15, sleep=time.sleep, clock=time.monotonic, read=sysops.read_file):
+    """DHCP mode: waits for SLAAC addresses, so Samba finds them at start; then drops Docker's default
+    route when the router sent one (Docker's IPv6 gateway usually does not exist)."""
+    if not ipv6_active(iface, read):
+        return []
+    end = clock() + timeout
+    while clock() < end:
+        out = sysops.run(["ip", "-6", "-o", "addr", "show", "dev", iface, "scope", "global", "dynamic"])
+        # An address in duplicate address detection is not usable yet.
+        if any("tentative" not in line for line in out.splitlines()):
+            break
+        sleep(1)
+    else:
+        sysops.log(f"{iface}: no IPv6 router advertisement within {timeout} s")
+        return []
+    routes = [r.split() for r in sysops.run(["ip", "-6", "route", "show", "default", "dev", iface]).splitlines()]
+    if any("ra" in r for r in routes):
+        for r in routes:
+            if "ra" not in r and "via" in r:
+                via = r[r.index("via") + 1]
+                sysops.run(["ip", "-6", "route", "del", "default", "via", via, "dev", iface], check=False)
+                sysops.log(f"{iface}: dropped Docker's IPv6 default route via {via}")
+    addrs = global_addresses(iface)
+    sysops.log(f"{iface}: addresses {' '.join(addrs)}")
+    return addrs
+
+
+def watch(ifaces, interval=15, sleep=time.sleep, addresses=None):
+    """Service: ends when the global addresses of the interfaces change, so the container restarts;
+    Samba listens only on the addresses it found at start."""
+    addresses = addresses or global_addresses
+    first = {i: addresses(i) for i in ifaces}
+    while True:
+        sleep(interval)
+        for i in ifaces:
+            now = addresses(i)
+            if now != first[i]:
+                sysops.log(f"{i}: addresses changed from {' '.join(first[i]) or '-'} to {' '.join(now) or '-'}, "
+                           "restarting the container")
+                return 1
 
 
 def clear_leases(cfg):

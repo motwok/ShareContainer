@@ -231,14 +231,83 @@ def test_dhcp_event(monkeypatch, fs):
     network.dhcp_event("leasefail", {}, run)
     network.dhcp_event("deconfig", env, run)
     assert calls[-2:] == ["eth0: DHCP nak no", ": DHCP leasefail"]
-    assert ["smbcontrol", "smbd", "shutdown"] not in calls
     monkeypatch.setattr(sysops, "run", lambda cmd, check=True: calls.append(("default", cmd)) or "")
     network.dhcp_event("bound", env)
     assert ("default", ["ip", "addr", "add", "10.1.2.3/24", "dev", "eth0"]) in calls
-    # A renew with another address restarts the container through smbd.
+
+
+ADDR = """\
+2: eth0    inet 10.0.0.5/24 brd 10.0.0.255 scope global eth0\\       valid_lft forever
+2: eth0    inet6 2001:db8::5/64 scope global dynamic mngtmpaddr \\       valid_lft 7000sec
+2: eth0    inet6 2001:db8::99/64 scope global temporary dynamic \\       valid_lft 7000sec
+2: eth0    inet6 2001:db8::77/64 scope global deprecated dynamic \\       valid_lft 0sec
+"""
+
+
+def test_global_addresses(rec):
+    rec.results["ip"] = ADDR
+    assert network.global_addresses("eth0") == ["10.0.0.5/24", "2001:db8::5/64"]
+
+
+def test_ipv6_active():
+    conf = {"disable_ipv6": "0\n", "accept_ra": "1\n"}
+    assert network.ipv6_active("eth0", read=lambda p, d: conf.get(p.rsplit("/", 1)[1]))
+    conf["accept_ra"] = "0\n"
+    assert not network.ipv6_active("eth0", read=lambda p, d: conf.get(p.rsplit("/", 1)[1]))
+    assert not network.ipv6_active("eth0", read=lambda p, d: None)
+
+
+def test_wait_for_ipv6(monkeypatch):
+    on = lambda p, d: "0" if p.endswith("disable_ipv6") else "2"  # noqa: E731
+    assert network.wait_for_ipv6("eth0", read=lambda p, d: None) == []
+    calls = []
+    answers = {
+        ("ip", "-6", "-o"): iter(["", "2: eth0 inet6 2001:db8::5/64 scope global tentative dynamic\n",
+                                  "2: eth0 inet6 2001:db8::5/64 scope global dynamic\n"]),
+    }
+    routes = "default via 2001:db8:5c00:: dev eth0 metric 1024 pref medium\n" \
+             "default via fe80::1 dev eth0 proto ra metric 1024 expires 1800sec\n"
+
+    def run(cmd, data=None, check=True):
+        calls.append(cmd)
+        if cmd[:3] == ["ip", "-6", "-o"]:
+            return next(answers[("ip", "-6", "-o")])
+        if cmd[:4] == ["ip", "-6", "route", "show"]:
+            return routes
+        if cmd[:3] == ["ip", "-o", "addr"]:
+            return ADDR
+        return ""
+    monkeypatch.setattr(sysops, "run", run)
+    monkeypatch.setattr(sysops, "log", lambda m: None)
+    assert network.wait_for_ipv6("eth0", sleep=lambda s: None, read=on) == ["10.0.0.5/24", "2001:db8::5/64"]
+    assert ["ip", "-6", "route", "del", "default", "via", "2001:db8:5c00::", "dev", "eth0"] in calls
+    # No router route: Docker's route stays.
     calls.clear()
-    network.dhcp_event("renew", dict(env, ip="10.1.2.9"), run, current=lambda i: ["10.1.2.3/24"])
-    assert ["smbcontrol", "smbd", "shutdown"] in calls
+    answers[("ip", "-6", "-o")] = iter(["x\n"])
+    routes = "default via 2001:db8:5c00:: dev eth0 metric 1024\n"
+    network.wait_for_ipv6("eth0", sleep=lambda s: None, read=on)
+    assert not any(c[:4] == ["ip", "-6", "route", "del"] for c in calls)
+    # No router advertisement at all.
+    answers[("ip", "-6", "-o")] = iter([""] * 10)
+    t = iter(range(100))
+    assert network.wait_for_ipv6("eth0", timeout=3, sleep=lambda s: None, clock=lambda: next(t), read=on) == []
+
+
+def test_watch(monkeypatch):
+    monkeypatch.setattr(sysops, "log", lambda m: None)
+    seq = iter([["a"], ["b"], ["a"], ["b"], ["a"], ["c"]])
+    assert network.watch(["eth0", "eth1"], sleep=lambda s: None, addresses=lambda i: next(seq)) == 1
+    seq2 = iter([[], ["x"]])
+    assert network.watch(["eth0"], sleep=lambda s: None, addresses=lambda i: next(seq2)) == 1
+    monkeypatch.setattr(network, "global_addresses", lambda i: [])
+    calls = iter([None, RuntimeError("stop")])
+
+    def sleep(s):
+        r = next(calls)
+        if r:
+            raise r
+    with pytest.raises(RuntimeError):
+        network.watch(["eth0"], sleep=sleep)
 
 
 def test_clear_leases(cfg, fs):

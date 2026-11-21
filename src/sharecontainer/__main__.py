@@ -42,6 +42,8 @@ def main(argv=None):
             return davauth.main()
         if cmd == "dhcp-event":
             return network.dhcp_event(args[0] if args else "", os.environ)
+        if cmd == "watch-addresses":
+            return network.watch(args)
     except config.ConfigError as e:
         for err in e.errors:
             print(err, file=sys.stderr)

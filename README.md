@@ -77,9 +77,13 @@ How to get the full bandwidth (flow control, connection count) and a measurement
 - **macvlan with DHCP** ([example](examples/compose-macvlan-dhcp.yaml)): set `dhcp: true` on the
   interface and add `NET_ADMIN`. The container sends its name to the DHCP server and does not start
   without a lease.
-- IPv6 is served where the network provides it: with an address from Docker (`enable_ipv6` on the
-  network) or, in DHCP mode, by SLAAC from the router if Docker lets the interface accept router
-  advertisements. DHCPv6 is not used.
+- IPv6 is served where the network provides it. For macvlan create the network with IPv6 (`--ipv6`,
+  your prefix as `--subnet` and a small `--ip-range` for Docker's own address). In DHCP mode the
+  container also takes the addresses the router announces (SLAAC), waits for them at start and drops
+  Docker's IPv6 default route when the router sends one. DHCPv6 is not used.
+- Samba listens on the addresses it finds at start. When the addresses of the configured interfaces
+  change (new DHCP address, new IPv6 prefix), the container stops so that Docker restarts it on the new
+  ones: use a restart policy such as `restart: unless-stopped`.
 
 | Port | Protocol | When |
 |---|---|---|
