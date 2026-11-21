@@ -68,6 +68,7 @@ def main(path=paths.CONFIG_FILE, run=supervisor.run):
         network.check_interfaces(cfg)
         first = []
         dhcp = network.dhcp_interfaces(cfg)
+        network.check_sysctls(cfg)
         before = {i: network.ipv4(i) for i in dhcp}
         prepare(cfg)
         if dhcp:

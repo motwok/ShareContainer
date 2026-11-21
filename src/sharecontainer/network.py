@@ -43,6 +43,14 @@ def dhcpcd_conf(cfg):
     ])
 
 
+def check_sysctls(cfg, read=sysops.read_file):
+    """dhcpcd needs promote_secondaries; /proc/sys is read-only in containers, so the stack sets it."""
+    for name in dhcp_interfaces(cfg):
+        key = f"net.ipv4.conf.{name}.promote_secondaries"
+        if (read(f"/proc/sys/{key.replace('.', '/')}", "") or "").strip() != "1":
+            raise NetworkError(f"DHCP mode needs the sysctl {key}: 1 in the stack (sysctls)")
+
+
 def dhcpcd_command(cfg):
     sysops.write_file(paths.DHCPCD_CONF, dhcpcd_conf(cfg))
     return ["dhcpcd", "-B", "-4", "-f", paths.DHCPCD_CONF] + dhcp_interfaces(cfg)

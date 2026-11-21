@@ -201,6 +201,11 @@ def test_network(cfg, rec, fs):
     assert network.ipv4("eth0") == ["10.0.0.5/24"]
     cfg.interfaces[0].dhcp = True
     assert network.dhcp_interfaces(cfg) == ["eth0"]
+    network.check_sysctls(cfg, read=lambda p, d: "1\n")
+    with pytest.raises(network.NetworkError, match="promote_secondaries: 1"):
+        network.check_sysctls(cfg, read=lambda p, d: "0\n")
+    with pytest.raises(network.NetworkError):
+        network.check_sysctls(cfg, read=lambda p, d: None)
     os.makedirs(paths.RUN)
     assert network.dhcpcd_command(cfg)[-1] == "eth0"
     assert "hostname FS" in open(paths.DHCPCD_CONF).read()

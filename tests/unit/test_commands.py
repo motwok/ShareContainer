@@ -140,6 +140,7 @@ def test_main(cfg, monkeypatch, fs):
     assert got["w"] is None and got["s"][0].name == "smbd"
     cfg.interfaces[0].dhcp = True
     monkeypatch.setattr(network, "ipv4", lambda i: ["1.2.3.4/24"])
+    monkeypatch.setattr(network, "check_sysctls", lambda c: None)
     monkeypatch.setattr(network, "dhcpcd_command", lambda c: ["dhcpcd"])
     monkeypatch.setattr(network, "wait_for_lease", lambda i, b: f"{i}:{b}")
     assert start.main(run=lambda s, dhcp_wait: got.update(s=s, w=dhcp_wait) or 0) == 0
