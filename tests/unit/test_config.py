@@ -14,7 +14,7 @@ def test_defaults(cfg):
     assert cfg.name == "FS" and cfg.workgroup == "WG" and cfg.log_level == 1
     assert cfg.ssh.port == 2022 and cfg.ssh.password_login_disabled and not cfg.ssh.password_login
     assert cfg.webdav.port == 8080 and not cfg.webdav.https
-    assert cfg.metrics.enabled and cfg.metrics.port == 9482
+    assert cfg.metrics.enabled and cfg.metrics.port == 9483
     assert not cfg.homes and cfg.smb.min_protocol == "SMB3"
     assert cfg.shares[0].path == "/shares/data"
     assert cfg.user("alice").protocols == config.PROTOCOLS

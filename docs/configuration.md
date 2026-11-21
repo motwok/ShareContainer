@@ -51,7 +51,7 @@ webdav:
   port: 8080
 metrics:
   enabled: true
-  port: 9482
+  port: 9483
 homes:
   enabled: true
 groups:
@@ -167,7 +167,7 @@ The guest `anonymous` logs in with its empty password regardless of these switch
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Prometheus metrics on `/metrics`. |
-| `port` | `9482` | Port. |
+| `port` | `9483` | Port. |
 
 ## homes
 

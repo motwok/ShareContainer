@@ -39,7 +39,7 @@ How to get the full bandwidth (flow control, connection count) and a measurement
   mDNS**, each a switch.
 - **Host network or macvlan**, with an address from Docker or from your DHCP server (which registers the
   name in your DNS).
-- **Prometheus metrics** on port 9482: sessions, channels, connections, open files and locks per share,
+- **Prometheus metrics** on port 9483: sessions, channels, connections, open files and locks per share,
   bytes and requests.
 
 ## Quick start
@@ -93,7 +93,7 @@ How to get the full bandwidth (flow control, connection count) and a measurement
 | 5353/udp | mDNS | `smb.mdns` |
 | 2022/tcp | SSH (SFTP, scp, rsync, Borg) | `ssh.enabled` |
 | 8080/tcp or 8443/tcp | WebDAV | `webdav.enabled` |
-| 9482/tcp | metrics | `metrics.enabled` (on by default) |
+| 9483/tcp | metrics | `metrics.enabled` (on by default) |
 
 ## Volumes
 

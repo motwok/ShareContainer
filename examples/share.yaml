@@ -32,7 +32,7 @@ webdav:
   port: 8080
 metrics:
   enabled: true
-  port: 9482
+  port: 9483
 homes:
   enabled: true
 groups:

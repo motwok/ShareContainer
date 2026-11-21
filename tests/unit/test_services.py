@@ -254,7 +254,7 @@ def test_metrics_port_in_use(cfg, monkeypatch):
     def busy(*a):
         raise OSError(e.EADDRINUSE, "Address already in use")
     monkeypatch.setattr(metrics, "_Server", busy)
-    with pytest.raises(metrics.MetricsError, match="port 9482: Address already in use"):
+    with pytest.raises(metrics.MetricsError, match="port 9483: Address already in use"):
         metrics.serve(cfg)
 
     def no_v6(*a):

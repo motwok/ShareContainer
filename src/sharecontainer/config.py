@@ -107,7 +107,7 @@ class WebDav:
 @dataclass
 class Metrics:
     enabled: bool = True
-    port: int = 9482
+    port: int = 9483
 
 
 @dataclass
@@ -330,7 +330,7 @@ def parse(data):
                  r.integer(d, "port", "webdav", 8443 if https else 8080, 1, 65535))
 
     mt = r.mapping(top.get("metrics"), "metrics", ("enabled", "port"))
-    metrics = Metrics(r.boolean(mt, "enabled", "metrics", True), r.integer(mt, "port", "metrics", 9482, 1, 65535))
+    metrics = Metrics(r.boolean(mt, "enabled", "metrics", True), r.integer(mt, "port", "metrics", 9483, 1, 65535))
 
     hm = r.mapping(top.get("homes"), "homes", ("enabled",))
     homes = r.boolean(hm, "enabled", "homes", False)
