@@ -91,7 +91,8 @@ def wait_for_ipv6(iface, timeout=15, sleep=time.sleep, clock=time.monotonic, rea
     while clock() < end:
         out = sysops.run(["ip", "-6", "-o", "addr", "show", "dev", iface, "scope", "global", "dynamic"])
         # An address in duplicate address detection is not usable yet.
-        if any("tentative" not in line for line in out.splitlines()):
+        lines = out.splitlines()
+        if lines and not any("tentative" in line for line in lines):
             break
         sleep(1)
     else:
