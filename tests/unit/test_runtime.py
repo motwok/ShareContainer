@@ -263,7 +263,10 @@ def test_wait_for_ipv6(monkeypatch):
     calls = []
     answers = {
         ("ip", "-6", "-o"): iter(["", "2: eth0 inet6 2001:db8::5/64 scope global tentative dynamic\n",
-                                  "2: eth0 inet6 2001:db8::5/64 scope global dynamic\n"]),
+                                  "2: eth0 inet6 2001:db8::5/64 scope global dynamic\n"
+                                  "2: eth0 inet6 fd00::5/64 scope global tentative dynamic\n",
+                                  "2: eth0 inet6 2001:db8::5/64 scope global dynamic\n"
+                                  "2: eth0 inet6 fd00::5/64 scope global dynamic\n"]),
     }
     routes = "default via 2001:db8:5c00:: dev eth0 metric 1024 pref medium\n" \
              "default via fe80::1 dev eth0 proto ra metric 1024 expires 1800sec\n"
