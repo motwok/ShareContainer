@@ -11,6 +11,8 @@ cleanup() {
   docker rm -f sc sc-client sc-bad sc-dhcp sc-dnsmasq >/dev/null 2>&1
   docker network rm $NET sc-dhcpnet >/dev/null 2>&1
   docker volume rm sc-state >/dev/null 2>&1
+  # Files in the bind mounts belong to the container's users.
+  [ -d "$WORK" ] && docker run --rm -v "$WORK:/w" debian:trixie-slim sh -c 'rm -rf /w/*' >/dev/null 2>&1
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -69,7 +71,7 @@ check "smb: guest reads public" client "smbclient -N //sc/public -c 'get readme.
 deny "smb: guest cannot write public" client "smbclient -N //sc/public -c 'put /tmp/h x.txt'"
 check "smb: alice home" client "smbclient //sc/alice -U alice%alicepw -c 'put /tmp/h home.txt'"
 deny "smb: backup is not an SMB share" client "smbclient //sc/backup -U alice%alicepw -c ls"
-check "smb: file belongs to alice" test "$(stat -c %u "$WORK/shares/data/f.bin")" = 3001
+check "smb: file belongs to alice" test "$(docker exec sc stat -c %u /shares/data/f.bin)" = 3001
 check "acl: share folder has the lists" sh -c "docker exec sc getfacl -p /shares/data | grep -q 'group:team:r-x'"
 
 # SSH
@@ -93,7 +95,7 @@ check "ssh: host key kept in the volume" sh -c "docker exec sc ls /var/lib/samba
 # WebDAV
 dav() { client "curl -s -o /dev/null -w '%{http_code}' $1"; }
 check "webdav: alice PUT data (201)" test "$(dav "-u alice:alicepw -T /tmp/h http://sc:8080/data/dav.txt")" = 201
-check "webdav: file belongs to alice" test "$(stat -c %u "$WORK/shares/data/dav.txt")" = 3001
+check "webdav: file belongs to alice" test "$(docker exec sc stat -c %u /shares/data/dav.txt)" = 3001
 check "webdav: bob GET data (200)" test "$(dav "-u bob:bobpw http://sc:8080/data/dav.txt")" = 200
 check "webdav: bob PUT data denied (403)" test "$(dav "-u bob:bobpw -T /tmp/h http://sc:8080/data/bob.txt")" = 403
 check "webdav: wrong password (401)" test "$(dav "-u alice:wrong http://sc:8080/data/dav.txt")" = 401
@@ -101,7 +103,7 @@ check "webdav: no credentials (401)" test "$(dav "http://sc:8080/data/")" = 401
 check "webdav: carol not allowed (401)" test "$(dav "-u carol:carolpw http://sc:8080/public/readme.txt")" = 401
 check "webdav: guest GET public (200)" test "$(dav "-u anonymous: http://sc:8080/public/readme.txt")" = 200
 check "webdav: alice home (201)" test "$(dav "-u alice:alicepw -T /tmp/h http://sc:8080/home/dav-home.txt")" = 201
-check "webdav: home file in alice's home" test -f "$WORK/user/alice/dav-home.txt"
+check "webdav: home file in alice's home" docker exec sc test -f /user/alice/dav-home.txt
 check "webdav: backup not served (401/404)" sh -c "c=\$(docker exec sc-client curl -s -o /dev/null -w '%{http_code}' -u alice:alicepw http://sc:8080/backup/); [ \$c = 404 ] || [ \$c = 403 ]"
 check "webdav: PROPFIND" test "$(dav "-u alice:alicepw -X PROPFIND -H 'Depth: 1' http://sc:8080/data/")" = 207
 
@@ -123,15 +125,21 @@ check "after rebuild: WebDAV password still valid" test "$(dav "-u alice:alicepw
 
 # DHCP mode: the container takes its address from a DHCP server and drops Docker's address.
 docker network create --subnet 172.31.250.0/24 --ip-range 172.31.250.0/26 sc-dhcpnet >/dev/null
-docker run -d --name sc-dnsmasq --network sc-dhcpnet --cap-add NET_ADMIN sc-smoke-client sh -c \
-  "apt-get -qq update >/dev/null 2>&1 && apt-get -qq install -y dnsmasq >/dev/null 2>&1 && dnsmasq -d --port=0 --dhcp-range=172.31.250.200,172.31.250.220,1h --log-dhcp" >/dev/null
+docker run -d --name sc-dnsmasq --network sc-dhcpnet --cap-add NET_ADMIN sc-smoke-client \
+  dnsmasq -d --port=0 --dhcp-range=172.31.250.200,172.31.250.220,1h --log-dhcp >/dev/null
 printf 'server:\n  name: SCDHCP\nnetwork:\n  interfaces:\n    - name: eth0\n      speed: 1000000000\n      dhcp: true\nsmb:\n  enabled: true\nmetrics:\n  enabled: false\n' > "$WORK/dhcp.yaml"
-for i in $(seq 1 60); do docker logs sc-dnsmasq 2>&1 | grep -q "DHCP, IP range" && break; sleep 2; done
+for i in $(seq 1 30); do docker logs sc-dnsmasq 2>&1 | grep -q "DHCP, IP range" && break; sleep 1; done
 docker run -d --name sc-dhcp --network sc-dhcpnet --cap-add NET_ADMIN -v "$WORK/dhcp.yaml:/config/share.yaml:ro" "$IMAGE" >/dev/null
 for i in $(seq 1 40); do docker logs sc-dhcp 2>&1 | grep -q "DHCP address" && break; sleep 2; done
+dhcpfail=$FAILED
 check "dhcp: lease from the DHCP server" sh -c "docker logs sc-dhcp 2>&1 | grep -q 'DHCP address 172.31.250.2'"
 check "dhcp: host name sent" sh -c "docker logs sc-dnsmasq 2>&1 | grep -qi scdhcp"
-check "dhcp: Docker's address dropped" sh -c "! docker exec sc-dhcp ip -4 addr show eth0 | grep -q '172.31.250.[0-9]/\|172.31.250.[1-5][0-9]/\|172.31.250.6[0-3]/'"
+check "dhcp: only the leased address is left" sh -c \
+  "docker exec sc-dhcp ip -4 -o addr show eth0 | awk '{print \$4}' | grep -qx '172.31.250.2[0-2][0-9]/24' && [ \$(docker exec sc-dhcp ip -4 -o addr show eth0 | wc -l) = 1 ]"
+if [ $FAILED -gt $dhcpfail ]; then
+  echo "--- sc-dhcp"; docker logs sc-dhcp 2>&1 | tail -20
+  echo "--- dnsmasq"; docker logs sc-dnsmasq 2>&1 | tail -20
+fi
 
 echo
 if [ $FAILED -gt 0 ]; then
