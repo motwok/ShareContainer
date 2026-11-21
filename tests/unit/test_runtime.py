@@ -217,7 +217,7 @@ def test_dhcp_event(monkeypatch, fs):
     calls = []
     monkeypatch.setattr(sysops, "log", lambda m: calls.append(m))
 
-    def run(cmd):
+    def run(cmd, check=True):
         calls.append(cmd)
     env = {"interface": "eth0", "ip": "10.1.2.3", "subnet": "255.255.255.0", "router": "10.1.2.1 10.1.2.254"}
     assert network.dhcp_event("bound", env, run, current=lambda i: ["172.17.0.2/16"]) == 0
@@ -231,6 +231,20 @@ def test_dhcp_event(monkeypatch, fs):
     network.dhcp_event("leasefail", {}, run)
     network.dhcp_event("deconfig", env, run)
     assert calls[-2:] == ["eth0: DHCP nak no", ": DHCP leasefail"]
+    assert ["smbcontrol", "smbd", "shutdown"] not in calls
     monkeypatch.setattr(sysops, "run", lambda cmd, check=True: calls.append(("default", cmd)) or "")
     network.dhcp_event("bound", env)
     assert ("default", ["ip", "addr", "add", "10.1.2.3/24", "dev", "eth0"]) in calls
+    # A renew with another address restarts the container through smbd.
+    calls.clear()
+    network.dhcp_event("renew", dict(env, ip="10.1.2.9"), run, current=lambda i: ["10.1.2.3/24"])
+    assert ["smbcontrol", "smbd", "shutdown"] in calls
+
+
+def test_clear_leases(cfg, fs):
+    os.makedirs(paths.RUN)
+    cfg.interfaces[0].dhcp = True
+    open(network.lease_file("eth0"), "w").write("10.0.0.1/24\n")
+    network.clear_leases(cfg)
+    assert not os.path.exists(network.lease_file("eth0"))
+    network.clear_leases(cfg)

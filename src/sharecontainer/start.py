@@ -68,6 +68,7 @@ def main(path=paths.CONFIG_FILE, run=supervisor.run):
         network.check_interfaces(cfg)
         dhcp = network.dhcp_interfaces(cfg)
         prepare(cfg)
+        network.clear_leases(cfg)
         first = [Service(f"udhcpc-{i}", network.dhcp_command(cfg, i)) for i in dhcp]
     except (network.NetworkError, accounts.AccountError, acls.AclError, sysops.CommandError, OSError) as e:
         sysops.log(f"cannot start: {e}")
