@@ -57,11 +57,26 @@ def dhcp_event(event, env, run=None, current=None):
         router = (env.get("router") or "").split()
         if router:
             run(["ip", "route", "replace", "default", "via", router[0], "dev", iface])
+        previous = (sysops.read_file(lease_file(iface), "") or "").strip()
         sysops.write_file(lease_file(iface), lease + "\n")
         sysops.log(f"{iface}: DHCP {event} {lease}")
+        if previous and previous != lease:
+            # The services listen on the old address: stop smbd, the supervisor stops the container
+            # and Docker's restart policy starts it on the new one.
+            sysops.log(f"{iface}: address changed from {previous}, restarting the container")
+            run(["smbcontrol", "smbd", "shutdown"], check=False)
     elif event in ("leasefail", "nak"):
         sysops.log(f"{iface}: DHCP {event} {env.get('message', '')}".rstrip())
     return 0
+
+
+def clear_leases(cfg):
+    """A restarted container keeps /run; an old lease must not count as the new one."""
+    for iface in dhcp_interfaces(cfg):
+        try:
+            os.unlink(lease_file(iface))
+        except FileNotFoundError:
+            pass
 
 
 def wait_for_lease(iface, timeout=60, sleep=time.sleep, clock=time.monotonic):

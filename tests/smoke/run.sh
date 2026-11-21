@@ -135,6 +135,10 @@ dhcpfail=$FAILED
 check "dhcp: lease from the DHCP server" sh -c "docker logs sc-dhcp 2>&1 | grep -q 'DHCP address 172.31.250.2'"
 check "dhcp: host name sent" sh -c "docker logs sc-dnsmasq 2>&1 | grep -qi scdhcp"
 check "passwd works with SMB only (no SSH)" sh -c "printf 'davepw\n' | docker exec -i sc-dhcp passwd --stdin dave"
+check "dhcp: smbd listens on the leased address" sh -c "docker exec sc-dhcp ss -ltn | grep -q '172.31.250.2[0-2][0-9]:445 '"
+docker restart sc-dhcp >/dev/null
+for i in $(seq 1 30); do docker exec sc-dhcp sharecontainer health >/dev/null 2>&1 && break; sleep 2; done
+check "dhcp: after restart smbd listens on the leased address" sh -c "docker exec sc-dhcp ss -ltn | grep -q '172.31.250.2[0-2][0-9]:445 '"
 check "dhcp: only the leased address is left" sh -c \
   "docker exec sc-dhcp ip -4 -o addr show eth0 | awk '{print \$4}' | grep -qx '172.31.250.2[0-2][0-9]/24' && [ \$(docker exec sc-dhcp ip -4 -o addr show eth0 | wc -l) = 1 ]"
 if [ $FAILED -gt $dhcpfail ]; then
