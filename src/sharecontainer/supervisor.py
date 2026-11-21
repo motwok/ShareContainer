@@ -59,6 +59,9 @@ def run(services, dhcp_wait=None, wait_after=1, popen=subprocess.Popen, waitpid=
     except Exception as e:  # noqa: BLE001 - any start failure stops the container cleanly
         sysops.log(f"cannot start: {e}")
         code = 1
+    # Further signals must not interrupt the shutdown.
+    sig(signal.SIGTERM, signal.SIG_IGN)
+    sig(signal.SIGINT, signal.SIG_IGN)
     for pid in procs:
         try:
             os.kill(pid, signal.SIGTERM)

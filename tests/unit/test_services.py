@@ -246,3 +246,29 @@ def test_health(fs, capsys):
     assert "x not running" in capsys.readouterr().out
     open(paths.HEALTH, "w").write(json.dumps([{"name": "me", "pid": os.getpid(), "ports": []}]))
     assert supervisor.health() == 0
+
+
+def test_metrics_port_in_use(cfg, monkeypatch):
+    import errno as e
+
+    def busy(*a):
+        raise OSError(e.EADDRINUSE, "Address already in use")
+    monkeypatch.setattr(metrics, "_Server", busy)
+    with pytest.raises(metrics.MetricsError, match="port 9482: Address already in use"):
+        metrics.serve(cfg)
+
+    def no_v6(*a):
+        raise OSError(e.EAFNOSUPPORT, "no IPv6")
+    monkeypatch.setattr(metrics, "_Server", no_v6)
+    monkeypatch.setattr(metrics, "_Server4", busy)
+    with pytest.raises(metrics.MetricsError, match="set metrics.port"):
+        metrics.serve(cfg)
+
+
+def test_supervisor_ignores_signals_while_stopping(fs, monkeypatch):
+    os.makedirs(paths.RUN)
+    handlers = []
+    monkeypatch.setattr(os, "kill", lambda pid, s: None)
+    supervisor.run([supervisor.Service("a", ["a"])], popen=lambda c, preexec_fn: FakeProc(7),
+                   waitpid=lambda p, f: (7, 0), sig=lambda s, h: handlers.append((s, h)))
+    assert handlers[-2:] == [(signal.SIGTERM, signal.SIG_IGN), (signal.SIGINT, signal.SIG_IGN)]
