@@ -1,5 +1,6 @@
 """Prometheus metrics of the SMB server on /metrics."""
 
+import errno
 import json
 import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -7,6 +8,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import sysops
 
 PREFIX = "sharecontainer_"
+
+
+class MetricsError(Exception):
+    pass
 
 
 def _json(args):
@@ -97,7 +102,12 @@ def serve(cfg, port=None):
 
     port = port or cfg.metrics.port
     try:
-        server = _Server(("::", port), Handler)
-    except OSError:
-        server = _Server4(("0.0.0.0", port), Handler)
+        try:
+            server = _Server(("::", port), Handler)
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                raise
+            server = _Server4(("0.0.0.0", port), Handler)
+    except OSError as e:
+        raise MetricsError(f"metrics: cannot listen on port {port}: {e.strerror}; set metrics.port") from None
     server.serve_forever()

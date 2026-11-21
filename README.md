@@ -70,7 +70,8 @@ How to get the full bandwidth (flow control, connection count) and a measurement
 
 - **Host network** (`network_mode: host`, [example](examples/compose-host.yaml)): the container uses the
   host's interfaces; needed for Multichannel over a bond. Samba, an sshd on the configured port, Avahi
-  or wsdd must not run on the host for the protocols you switch on.
+  or wsdd must not run on the host for the protocols you switch on, and the ports below must be free
+  (otherwise set another `ssh.port`, `webdav.port` or `metrics.port`).
 - **macvlan with an address from Docker** ([example](examples/compose-macvlan.yaml)): the container has
   its own address on the LAN. The Docker host itself cannot reach it over the macvlan parent.
 - **macvlan with DHCP** ([example](examples/compose-macvlan-dhcp.yaml)): set `dhcp: true` on the

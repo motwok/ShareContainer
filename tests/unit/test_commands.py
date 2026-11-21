@@ -162,6 +162,11 @@ def test_cli(monkeypatch, capsys, cfg):
     assert cli.main(["health"]) == 0
     monkeypatch.setattr(cli.metrics, "serve", lambda c: None)
     assert cli.main(["metrics"]) == 0
+
+    def busy(c):
+        raise cli.metrics.MetricsError("metrics: port in use")
+    monkeypatch.setattr(cli.metrics, "serve", busy)
+    assert cli.main(["metrics"]) == 1
     monkeypatch.setattr(cli.sshcmd, "main", lambda: 1)
     monkeypatch.setattr(cli.davauth, "main", lambda: 0)
     assert cli.main(["ssh-command"]) == 1 and cli.main(["davauth"]) == 0

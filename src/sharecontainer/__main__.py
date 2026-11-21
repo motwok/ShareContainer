@@ -49,6 +49,9 @@ def main(argv=None):
     except credentials.UsageError as e:
         print(e, file=sys.stderr)
         return 2
+    except metrics.MetricsError as e:
+        print(e, file=sys.stderr)
+        return 1
     print(USAGE, file=sys.stderr)
     return 2
 
