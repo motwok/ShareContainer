@@ -1,0 +1,19 @@
+ShareContainer
+Copyright (c) Emmo Emminghaus mo2000 at mo2000 dot de
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See the LICENSE file for the full text.
+
+--------------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------------
+
+The image contains Samba (https://www.samba.org), GNU GPL v3 license,
+Copyright The Samba Team, further distribution packages (e.g. OpenSSH, Apache
+HTTP Server, mpm-itk, rsync, Borg, Avahi, wsdd2, dhcpcd)
+and the packages of its base image (Debian), each under its own
+license. The source code of these packages is available from the Debian
+package archive (https://sources.debian.org) in the versions contained in the
+image.

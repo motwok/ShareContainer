@@ -1,0 +1,72 @@
+server:
+  name: SMOKE
+  workgroup: WORKGROUP
+  log_level: 1
+network:
+  interfaces:
+    - name: eth0
+      speed: 1000000000
+smb:
+  enabled: true
+  multichannel: true
+  macos: true
+  recycle: true
+  guest: false
+ssh:
+  enabled: true
+  password_login_disabled: false
+webdav:
+  enabled: true
+metrics:
+  enabled: true
+homes:
+  enabled: true
+groups:
+  - name: team
+    gid: 3000
+users:
+  - name: alice
+    uid: 3001
+    groups:
+      - team
+    password_login: true
+  - name: bob
+    uid: 3002
+    groups:
+      - team
+    password_login: true
+    protocols:
+      - smb
+      - webdav
+      - sftp
+  - name: carol
+    uid: 3003
+    protocols:
+      - smb
+    home: false
+  - name: anonymous
+    uid: 3009
+    protocols:
+      - smb
+      - webdav
+      - sftp
+shares:
+  - name: data
+    read:
+      - "@team"
+    write:
+      - alice
+  - name: public
+    guest: true
+    read:
+      - anonymous
+      - carol
+    write:
+      - alice
+  - name: backup
+    write:
+      - alice
+    protocols:
+      - sftp
+      - rsync
+      - borg

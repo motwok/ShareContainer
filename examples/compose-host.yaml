@@ -1,0 +1,21 @@
+# Host network: required for SMB Multichannel over a bond; Samba must not run on the host.
+services:
+  fileserver:
+    image: ghcr.io/motwok/sharecontainer:latest
+    container_name: fileserver
+    network_mode: host
+    restart: unless-stopped
+    cap_add:
+      - DAC_READ_SEARCH  # WebDAV only
+      - SYS_NICE         # WebDAV only
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./config:/config
+      - state:/var/lib/samba
+      - /srv/photos:/shares/photos
+      - /srv/public:/shares/public
+      - /srv/backup:/backup
+      - /srv/homes:/user
+volumes:
+  state:

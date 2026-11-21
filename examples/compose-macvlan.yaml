@@ -1,0 +1,30 @@
+# macvlan with an address from Docker (IPAM). The Docker host itself cannot reach this address.
+services:
+  fileserver:
+    image: ghcr.io/motwok/sharecontainer:latest
+    container_name: fileserver
+    hostname: fileserver
+    restart: unless-stopped
+    cap_add:
+      - DAC_READ_SEARCH  # WebDAV only
+      - SYS_NICE         # WebDAV only
+    networks:
+      lan:
+        ipv4_address: 192.0.2.20
+    volumes:
+      - ./config:/config
+      - state:/var/lib/samba
+      - /srv/photos:/shares/photos
+      - /srv/homes:/user
+networks:
+  lan:
+    driver: macvlan
+    driver_opts:
+      parent: eth0
+    ipam:
+      config:
+        - subnet: 192.0.2.0/24
+          gateway: 192.0.2.1
+          ip_range: 192.0.2.16/28
+volumes:
+  state:

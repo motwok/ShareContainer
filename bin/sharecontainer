@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 -I -P -c "import sys; sys.path.insert(0, \"/usr/lib/sharecontainer\"); from sharecontainer.__main__ import main; sys.exit(main())" "$@"

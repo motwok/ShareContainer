@@ -1,0 +1,78 @@
+server:
+  name: FILESERVER
+  workgroup: WORKGROUP
+  log_level: 1
+network:
+  interfaces:
+    - name: bond0
+      speed: 4000000000
+smb:
+  enabled: true
+  multichannel: true
+  macos: true
+  recycle: false
+  guest: false
+  windows_acls: false
+  netbios: false
+  wsd: true
+  mdns: true
+  min_protocol: SMB3
+  encryption: default
+  signing: default
+  extra:
+    server string: Files
+ssh:
+  enabled: true
+  port: 2022
+  password_login_disabled: true
+  password_login: false
+webdav:
+  enabled: true
+  https: false
+  port: 8080
+metrics:
+  enabled: true
+  port: 9482
+homes:
+  enabled: true
+groups:
+  - name: family
+    gid: 2000
+users:
+  - name: alice
+    uid: 2001
+    groups:
+      - family
+  - name: bob
+    uid: 2002
+    groups:
+      - family
+    protocols:
+      - smb
+      - webdav
+    home: false
+  - name: anonymous
+    uid: 2099
+    protocols:
+      - smb
+shares:
+  - name: photos
+    read:
+      - "@family"
+    write:
+      - alice
+  - name: public
+    guest: true
+    read:
+      - anonymous
+      - "@family"
+    write:
+      - alice
+  - name: backup
+    path: /backup
+    write:
+      - alice
+    protocols:
+      - sftp
+      - rsync
+      - borg

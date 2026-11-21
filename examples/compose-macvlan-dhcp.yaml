@@ -1,0 +1,22 @@
+# macvlan, address from the LAN's DHCP server (network.interfaces[].dhcp: true in share.yaml).
+# The fixed MAC address keeps lease and DNS name across rebuilds. Docker's ip_range must not
+# overlap the DHCP server's range; the container drops Docker's address after the lease.
+services:
+  fileserver:
+    image: ghcr.io/motwok/sharecontainer:latest
+    container_name: fileserver
+    restart: unless-stopped
+    mac_address: "02:42:c0:00:02:14"
+    cap_add:
+      - NET_ADMIN        # DHCP mode only
+    networks:
+      - lan
+    volumes:
+      - ./config:/config
+      - state:/var/lib/samba
+      - /srv/photos:/shares/photos
+networks:
+  lan:
+    external: true  # created once: docker network create -d macvlan -o parent=eth0 --subnet ... lan
+volumes:
+  state:
