@@ -119,6 +119,15 @@ How to get the full bandwidth (flow control, connection count) and a measurement
 SSH offers no shell. Borg repositories can be created on shares the user may write to and in the home.
 WebDAV over the internet belongs behind a TLS reverse proxy or uses `webdav.https`.
 
+**Windows' built-in WebDAV client** (`net use X: https://server:8443/<share>` or "Map network drive"):
+
+- It sends passwords only over HTTPS with a certificate Windows trusts; over plain HTTP or with an
+  untrusted certificate the mapping fails (system error 67 or 1244). Use `webdav.https` with a trusted
+  certificate or a TLS reverse proxy.
+- One user per server at a time; disconnect before mapping as another user (system error 1219).
+- The guest maps with `/user:anonymous ""`.
+- Files are limited to about 50 MB by default (`FileSizeLimitInBytes` of the WebClient service).
+
 **Files used over SMB and another protocol at the same time:** clients' cached writes are flushed before
 another protocol opens a file, but SMB's share modes ("deny write", for example of an open Office
 document) and byte-range locks are not visible to SSH or WebDAV. Do not edit the same file over SMB and
