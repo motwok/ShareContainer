@@ -12,6 +12,7 @@ smb:
   macos: true
   recycle: true
   guest: false
+  windows_acls: true
 ssh:
   enabled: true
   password_login_disabled: false

@@ -32,7 +32,9 @@ def _rsync(args, rules, view):
     dot = args.index(".")
     opts, targets = args[2:dot], args[dot + 1:]
     for o in opts:
-        if o.split("=", 1)[0] in RSYNC_DENIED:
+        # Extended attributes would let writers forge Samba's stored NT ACL (user.NTACL).
+        xattrs = o == "--xattrs" or (not o.startswith("--") and "X" in o[1:].split(".")[0])
+        if o.split("=", 1)[0] in RSYNC_DENIED or xattrs:
             raise Denied(f"rsync option {o} is not allowed")
     sender = "--sender" in opts
     roots = rules["read"] if sender else rules["write"]

@@ -72,6 +72,8 @@ deny "smb: guest cannot write public" client "smbclient -N //sc/public -c 'put /
 check "smb: alice home" client "smbclient //sc/alice -U alice%alicepw -c 'put /tmp/h home.txt'"
 deny "smb: backup is not an SMB share" client "smbclient //sc/backup -U alice%alicepw -c ls"
 check "smb: file belongs to alice" test "$(docker exec sc stat -c %u /shares/data/f.bin)" = 3001
+check "smb: Windows ACL set by the owner is stored" client "smbcacls //sc/data f.bin -U alice%alicepw -a 'ACL:SMOKE\bob:ALLOWED/0x0/READ'"
+check "smb: NT ACL is in user.NTACL" docker exec sc python3 -c "import os; os.getxattr('/shares/data/f.bin', 'user.NTACL')"
 check "acl: share folder has the lists" sh -c "docker exec sc getfacl -p /shares/data | grep -q 'group:team:r-x'"
 
 # SSH
@@ -86,6 +88,7 @@ deny "ssh: carol (SMB only) is refused" client "sshpass -p carolpw ssh -o BatchM
 check "rsync: alice uploads to backup" client "mkdir -p /tmp/rs && cp /tmp/f /tmp/rs/ && rsync -a -e 'ssh -p 2022' /tmp/rs/ alice@sc:backup/rs/"
 check "rsync: alice downloads from data" client "rsync -a -e 'ssh -p 2022' alice@sc:data/sftp.txt /tmp/rs2.txt"
 deny "rsync: outside the view is refused" client "rsync -a -e 'ssh -p 2022' alice@sc:/etc/passwd /tmp/p"
+deny "rsync -X (extended attributes) is refused" client "rsync -aX -e 'ssh -p 2022' /tmp/h alice@sc:data/x.txt"
 check "borg 1: init, create, list" client "export BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes BORG_RELOCATED_REPO_ACCESS_IS_OK=yes; borg init -e none ssh://alice@sc:2022/./backup/b1 && borg create ssh://alice@sc:2022/./backup/b1::a1 /tmp/rs && borg list ssh://alice@sc:2022/./backup/b1 | grep -q a1"
 check "borg 2: create, list" client "export BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes BORG_REMOTE_PATH=borg2; borg2 -r ssh://alice@sc:2022/./backup/b2 repo-create -e none && borg2 -r ssh://alice@sc:2022/./backup/b2 create a1 /tmp/rs && borg2 -r ssh://alice@sc:2022/./backup/b2 repo-list | grep -q a1"
 deny "borg: repository outside the allowed folders" client "export BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes; borg init -e none ssh://alice@sc:2022/tmp/evil"

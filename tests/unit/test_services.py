@@ -36,6 +36,8 @@ def test_sftp():
     ("bash -i", "command bash is not allowed"),
     ("rsync --daemon", "not an rsync server command"),
     ("rsync --server --log-file=/x . data/", "option --log-file"),
+    ("rsync --server -logDtprXe.iLsfxCIvu . data/", "option -logDtprXe"),
+    ("rsync --server --xattrs . data/", "option --xattrs"),
     ("rsync --server -logDtpre.iLsfxCIvu .", "without a path"),
     ("rsync --server -e.LsfxCIvu . ro/x", "outside the allowed folders"),
     ("borg list", "only 'serve'"),

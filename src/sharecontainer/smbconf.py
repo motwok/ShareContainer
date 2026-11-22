@@ -59,7 +59,10 @@ def generate(cfg):
     if smb.signing != "default":
         g.append(("server signing", smb.signing))
     if smb.windows_acls:
-        g += [("map acl inherit", "yes"), ("acl_xattr:ignore system acls", "no")]
+        # security.* needs CAP_SYS_ADMIN, which a container does not have; Samba hides user.NTACL
+        # from SMB clients.
+        g += [("map acl inherit", "yes"), ("acl_xattr:ignore system acls", "no"),
+              ("acl_xattr:security_acl_name", "user.NTACL")]
     if smb.macos or any(s.macos for s in cfg.shares):
         g += [("fruit:metadata", "stream"), ("fruit:model", "MacSamba"), ("fruit:nfs_aces", "no"),
               ("fruit:delete_empty_adfiles", "yes")]
@@ -72,12 +75,11 @@ def generate(cfg):
         if "smb" not in s.protocols:
             continue
         users = cfg.share_users(s, "smb")
-        writers = cfg.share_users(s, "smb", write=True)
+        # Read and write rights come from the ACLs alone, as for SSH and WebDAV.
         p = [
             ("path", s.path),
             ("valid users", " ".join(users) if users else "nobody"),
-            ("read only", "yes"),
-            ("write list", " ".join(writers)),
+            ("read only", "no"),
             ("guest ok", "yes" if cfg.guest_share(s) else "no"),
             ("inherit acls", "yes"),
         ]
