@@ -22,7 +22,7 @@ The image is built for `linux/amd64` and `linux/arm64`.
 | **Publish** | `publish.yml` | called by Build and Packages | Pushes both platforms, smoke-tests the pushed image, moves `:latest`, publishes the release. |
 | **Packages** | `packages.yml` | daily | Rebuilds the image and compares all installed packages with `:latest`; a difference becomes a patch release. |
 | **Release Drafter** | `release-drafter.yml` | PR events | Labels pull requests from their Conventional Commit titles. |
-| **Dependabot** | `.github/dependabot.yml` | Dependabot schedule | Opens PRs for the base image and the GitHub Actions; they are merged automatically once the build is green. |
+| **Dependabot** | `.github/dependabot.yml` | Dependabot schedule | Opens PRs for the base image and the GitHub Actions; they are merged automatically once the build is green. A new base image is released by the next run of Packages. |
 
 Image-relevant files are `src/`, `bin/` and the `Dockerfile`.
 
@@ -31,7 +31,9 @@ Image-relevant files are `src/`, `bin/` and the `Dockerfile`.
 ```mermaid
 flowchart LR
   O[maintainer merges a PR] --> M[master]
-  D[Dependabot PR, auto-merged when green] --> M
+  D[Dependabot PR, auto-merged when green] --> DM[master, no build run]
+  DM --> K[daily package check<br/>finds the new image]
+  K --> B
   M --> C{image-relevant files<br/>changed since last release?}
   C -- "no (docs, CI, tests)" --> Q[no release,<br/>listed in the next one]
   C -- yes --> B[build and tests]
@@ -61,7 +63,9 @@ GitHub Actions only touch CI and do not). If you run `:latest` and redeploy regu
 doing anything.
 
 - **Base images:** Dependabot opens the pull request, it is merged automatically once the build and the
-  smoke test pass, and the result is a new patch release.
+  smoke test pass. A merge made by GitHub Actions starts no further workflow, so the release follows
+  with the next daily package check (below): when the new base image brings other package versions,
+  the image is published as a patch release, at the latest a day after the merge.
 - **Packages** (Samba and everything else installed from the distribution): Dependabot does not see
   them. A daily workflow builds the image and compares all installed package versions with those
   of the published image. Only if they differ, the new image is smoke-tested and published as a patch
