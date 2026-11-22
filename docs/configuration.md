@@ -128,7 +128,7 @@ Samba listens only on these interfaces.
 | `min_protocol` | `SMB3` | Oldest dialect allowed: `SMB2_02`, `SMB2_10`, `SMB3`, `SMB3_00`, `SMB3_02`, `SMB3_11`. |
 | `encryption` | `default` | `server smb encrypt`: `default`, `off`, `if_required`, `desired`, `required`. |
 | `signing` | `default` | `server signing`: `default`, `auto`, `mandatory`, `disabled`. Samba sets signing for the whole server only. |
-| `windows_acls` | `false` | Store Windows ACLs (`vfs_acl_xattr`); needs extended attributes on the share file systems. |
+| `windows_acls` | `false` | Store Windows ACLs (`vfs_acl_xattr`, in the extended attribute `user.NTACL`); needs extended attributes on the share file systems. See [Windows ACLs](#windows-acls). |
 | `macos` | `false` | macOS support (`vfs_fruit`, Time Machine friendly metadata); needs extended attributes. |
 | `recycle` | `false` | Recycle bin: deleted files go to `.recycle/<user>` in the share. |
 | `guest` | `false` | Guest access, see [Guest](#guest). |
@@ -225,6 +225,20 @@ POSIX ACLs (ext4, XFS, Btrfs, ZFS with `acltype=posix`).
 
 SFTP cannot be restricted per share (there is no chroot), so a share may only exclude `sftp` if none of
 its users may use SFTP.
+
+## Windows ACLs
+
+With `smb.windows_acls: true` users with full control (the write list) can change the rights of files
+and folders from Windows. Samba stores the Windows ACL in the extended attribute `user.NTACL`, hidden
+from SMB clients, and also turns it into the POSIX ACL, so the change applies to every protocol.
+
+- The rights of the share's top folder are reset to the lists at every start.
+- Files and folders below keep their Windows rights until the share's read or write list changes; then
+  every file and folder gets the rights of the lists again.
+- A client outside a domain cannot look up the server's accounts by name, so `icacls` fails with
+  "No mapping between account names and security IDs". Tools that pass the SIDs work (for example
+  PowerShell with `SecurityIdentifier` objects, or `smbcacls` on Linux).
+- `rsync -X` (extended attributes) is refused, so nobody can replace the stored ACL over SSH.
 
 ## Guest
 

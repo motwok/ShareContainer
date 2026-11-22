@@ -8,7 +8,8 @@ def test_smbconf_basic(cfg):
     assert "workgroup = WG" in out
     assert "map to guest = Bad User" in out and "guest account = anonymous" in out
     assert "invalid users = root" in out
-    assert "[data]" in out and "valid users = alice bob" in out and "write list = alice" in out
+    assert "[data]" in out and "valid users = alice bob" in out and "read only = no" in out
+    assert "write list" not in out
     assert "kernel oplocks = yes" in out and "smbd profiling level = count" in out
     assert "[homes]" not in out and "vfs objects" not in out
 
@@ -30,6 +31,7 @@ def test_smbconf_features(raw):
     assert "server multi channel support = yes" in out and "workgroup" not in out
     assert "server smb encrypt = required" in out and "server signing = mandatory" in out
     assert "map acl inherit = yes" in out and "fruit:metadata = stream" in out
+    assert "acl_xattr:security_acl_name = user.NTACL" in out
     assert "invalid users = root bob" in out and "map to guest = Never" in out
     assert "vfs objects = acl_xattr catia fruit streams_xattr recycle" in out
     assert "smb encrypt = desired" in out and "comment = x" in out and "socket options = TCP_NODELAY" in out
