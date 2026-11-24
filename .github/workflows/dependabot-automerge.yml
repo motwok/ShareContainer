@@ -1,10 +1,10 @@
-name: Dependabot auto-merge
+name: Merge green update PRs
 
 # Merges done with GITHUB_TOKEN start no workflow, so the build is started
-# here right after merging.
+# here right after merging. After the daily package update (04:17).
 on:
   schedule:
-    - cron: '30 4 * * *'
+    - cron: '30 5 * * *'
   workflow_dispatch:
 
 permissions:
@@ -16,11 +16,13 @@ jobs:
   merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Merge green Dependabot PRs, then build
+      - name: Merge green Dependabot and package PRs, then build
         run: |
           merged=0
-          for pr in $(gh pr list --repo "$REPO" --author 'app/dependabot' --state open \
-              --json number,mergeStateStatus --jq '.[] | select(.mergeStateStatus == "CLEAN") | .number'); do
+          for pr in $(gh pr list --repo "$REPO" --state open --json number,author,headRefName,mergeStateStatus \
+              --jq '.[] | select(.mergeStateStatus == "CLEAN")
+                        | select(.author.login == "app/dependabot" or .headRefName == "chore/image-packages")
+                        | .number'); do
             gh pr merge --repo "$REPO" --squash --delete-branch "$pr" && merged=1
           done
           [ "$merged" = 0 ] || gh workflow run build.yml --repo "$REPO" --ref master

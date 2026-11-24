@@ -80,7 +80,7 @@ jobs:
         id: changed
         run: |
           last=$(git describe --tags --abbrev=0 2>/dev/null || true)
-          if [ -z "$last" ] || ! git diff --quiet "$last" HEAD -- src bin Dockerfile; then
+          if [ -z "$last" ] || ! git diff --quiet "$last" HEAD -- src bin packages Dockerfile; then
             echo "release=true" >> "$GITHUB_OUTPUT"
           else
             echo "release=false" >> "$GITHUB_OUTPUT"
@@ -108,4 +108,3 @@ jobs:
       pull-requests: read
     with:
       version: ${{ needs.release.outputs.version }}
-      drafter: true

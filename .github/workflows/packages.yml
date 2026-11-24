@@ -1,91 +1,65 @@
-name: Packages
+name: Package update
 
-# Daily: rebuild the image and compare all installed Debian packages with the published :latest.
-# Only on a difference the new image is published as a patch release listing the changes.
+# Daily: record the installed Debian packages of the image in packages/. On a change a pull request
+# is opened; the merge job (dependabot-automerge.yml) merges it once green, and the merge releases.
 
 on:
   schedule:
-    - cron: "17 4 * * *"
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: read
-
-env:
-  IMG: ghcr.io/motwok/sharecontainer
+  contents: write
+  pull-requests: write
+  actions: write
 
 jobs:
-  compare:
-    name: Compare packages
+  packages:
+    name: Record the image packages
     runs-on: ubuntu-24.04
-    outputs:
-      changed: ${{ steps.diff.outputs.changed }}
-      version: ${{ steps.version.outputs.version }}
-      notes: ${{ steps.diff.outputs.notes }}
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Build without publishing
-        run: docker build --pull -t sharecontainer:check .
-      - name: Package lists
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the image and list its packages
+        run: sh tools/packages.sh
+      - name: Changed?
         id: diff
         run: |
-          docker run --rm --entrypoint cat sharecontainer:check /usr/share/sharecontainer-packages.txt | sort > new.txt
-          if ! docker pull -q "$IMG:latest" >/dev/null 2>&1; then
-            echo "No published image yet." >> "$GITHUB_STEP_SUMMARY"
+          git add -N packages
+          if git diff --quiet -- packages; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "No package changed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- packages
           fi
-          docker run --rm --entrypoint cat "$IMG:latest" /usr/share/sharecontainer-packages.txt | sort > old.txt
-          if cmp -s old.txt new.txt; then
-            echo "Packages unchanged." >> "$GITHUB_STEP_SUMMARY"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          {
-            echo "Updated distribution packages:"
-            echo
-            join -a1 -a2 -e '(none)' -o 0,1.2,2.2 old.txt new.txt | awk '$2 != $3 { print "- " $1 ": " $2 " -> " $3 }'
-          } > notes.md
-          cat notes.md >> "$GITHUB_STEP_SUMMARY"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          {
-            echo "notes<<EOF_NOTES"
-            cat notes.md
-            echo "EOF_NOTES"
-          } >> "$GITHUB_OUTPUT"
-      - name: Next patch version
-        id: version
+      - name: Pull request
         if: steps.diff.outputs.changed == 'true'
         run: |
-          last=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo v0.0.0)
-          IFS=. read -r major minor patch <<EOF
-          ${last#v}
-          EOF
-          echo "version=$major.$minor.$((patch + 1))" >> "$GITHUB_OUTPUT"
-
-  smoke:
-    name: Smoke test of the new image
-    needs: compare
-    if: needs.compare.outputs.changed == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - run: docker build --pull -t sharecontainer:test .
-      - run: IMAGE=sharecontainer:test sh tests/smoke/run.sh
-
-  publish:
-    name: Publish
-    needs:
-      - compare
-      - smoke
-    uses: ./.github/workflows/publish.yml
-    permissions:
-      contents: write
-      packages: write
-      pull-requests: read
-    with:
-      version: ${{ needs.compare.outputs.version }}
-      drafter: false
-      notes: ${{ needs.compare.outputs.notes }}
+          git config user.name "Emmo Emminghaus"
+          git config user.email "${{ vars.PACKAGES_EMAIL || 'motwok@users.noreply.github.com' }}"
+          git checkout -B chore/image-packages
+          git add packages
+          git commit -q -m "chore(deps): update image packages"
+          git push -f origin chore/image-packages
+          gh pr view chore/image-packages --json state --jq .state 2>/dev/null | grep -q OPEN ||
+            gh pr create --base master --head chore/image-packages \
+              --title "chore(deps): update image packages" --body "Installed package versions changed." \
+              --label dependencies
+          # Pull request runs of github-actions[bot] wait for approval, and dispatched runs do not
+          # count as required checks, so the run is approved here.
+          sha=$(git rev-parse HEAD)
+          ids=
+          for _ in $(seq 30); do
+            ids=$(gh run list --commit "$sha" --event pull_request --json databaseId,conclusion \
+              --jq '.[] | select(.conclusion == "action_required") | .databaseId')
+            [ -z "$ids" ] || break
+            sleep 10
+          done
+          [ -n "$ids" ] || { echo "::error::no pull request run waiting for approval"; exit 1; }
+          for id in $ids; do
+            gh api -X POST "repos/${{ github.repository }}/actions/runs/$id/approve"
+          done

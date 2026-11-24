@@ -1,8 +1,7 @@
 name: Publish
 
 # Pushes the image for both platforms, smoke-tests the pushed image, then moves :latest and
-# publishes the release. Called by Build (release notes from Release Drafter) and by Packages
-# (release notes with the package changes).
+# publishes the release drafted by Build.
 
 on:
   workflow_call:
@@ -10,13 +9,6 @@ on:
       version:
         required: true
         type: string
-      drafter:
-        required: true
-        type: boolean
-      notes:
-        required: false
-        type: string
-        default: ""
 
 permissions:
   contents: read
@@ -134,8 +126,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Move :latest
         run: docker buildx imagetools create -t "$IMG:latest" "$IMG:${{ inputs.version }}"
-      - name: Publish release (Release Drafter)
-        if: inputs.drafter
+      - name: Publish release
         uses: release-drafter/release-drafter@v7
         with:
           config-name: release-drafter.yml
@@ -143,11 +134,3 @@ jobs:
           publish: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish release (package update)
-        if: ${{ !inputs.drafter }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NOTES: ${{ inputs.notes }}
-        run: |
-          printf '%s\n' "$NOTES" > notes.md
-          gh release create "v${{ inputs.version }}" --title "v${{ inputs.version }}" --notes-file notes.md
