@@ -3,8 +3,7 @@
 ShareContainer is released as a container image with [Semantic Versioning](https://semver.org) (0.x
 before 1.0). **Every merge into `master` that changes the image is a release**. Merges that only touch
 documentation or CI build nothing new; they are listed in the next real release. There is no manual
-release step: merging a pull request is the approval. Updated distribution packages are released
-without a pull request (see below).
+release step: merging a pull request is the approval.
 
 ## Images
 
@@ -19,20 +18,21 @@ The image is built for `linux/amd64` and `linux/arm64`.
 | Workflow | File | Trigger | What it does |
 |---|---|---|---|
 | **Build** | `build.yml` | PR, push to `master`, started by the auto-merge | Unit tests (coverage 100 %), smoke test over every protocol on `amd64` and `arm64`; on `master` a release if the image changed. |
-| **Publish** | `publish.yml` | called by Build and Packages | Pushes both platforms, smoke-tests the pushed image, moves `:latest`, publishes the release. |
-| **Packages** | `packages.yml` | daily | Rebuilds the image and compares all installed packages with `:latest`; a difference becomes a patch release. |
+| **Publish** | `publish.yml` | called by Build | Pushes both platforms, smoke-tests the pushed image, moves `:latest`, publishes the release. |
+| **Package update** | `packages.yml` | daily, manual | Builds the image for both platforms, writes its installed package versions to `packages/` and, if they changed, opens a PR and starts **Build** on it. |
 | **Release Drafter** | `release-drafter.yml` | PR events | Labels pull requests from their Conventional Commit titles. |
 | **Dependabot** | `.github/dependabot.yml` | daily (Dependabot schedule) | Opens PRs for the base image and the GitHub Actions used. |
-| **Dependabot auto-merge** | `dependabot-automerge.yml` | daily | Merges the Dependabot PRs whose checks are green and then starts the Build workflow, because a merge made by the workflow token starts no build of its own. |
+| **Merge green update PRs** | `dependabot-automerge.yml` | daily, manual | Merges the green Dependabot and package PRs, then starts **Build** on `master`, because a merge made by the workflow token starts no build of its own. |
 
-Image-relevant files are `src/`, `bin/` and the `Dockerfile`.
+Image-relevant files are `src/`, `bin/`, `packages/` and the `Dockerfile`.
 
 ## Release flow
 
 ```mermaid
 flowchart LR
   O[maintainer merges a PR] --> M[master]
-  D[Dependabot PR, auto-merged when green] --> M
+  D[Dependabot PR, merged by a daily job when green] --> M
+  U[daily package update PR, merged by a daily job when green] --> M
   M --> C{image-relevant files<br/>changed since last release?}
   C -- "no (docs, CI, tests)" --> Q[no release,<br/>listed in the next one]
   C -- yes --> B[build and tests]
@@ -61,12 +61,13 @@ Labels are set automatically from Conventional Commit titles (`feat:`, `fix:`, `
 GitHub Actions only touch CI and do not). If you run `:latest` and redeploy regularly, you get it without
 doing anything.
 
-- **Base images:** Dependabot opens the pull request; once its checks are green, the daily auto-merge
+- **Base images:** Dependabot opens the pull request; once its checks are green, the daily merge job
   merges it and starts the build, which releases it as a new patch release.
 - **Packages** (Samba and everything else installed from the distribution): Dependabot does not see
-  them. A daily workflow builds the image and compares all installed package versions with those
-  of the published image. Only if they differ, the new image is smoke-tested and published as a patch
-  release that lists the package changes.
+  them. A daily workflow builds the image and records all installed package versions in `packages/`.
+  If they changed, it opens a pull request `chore(deps): update image packages`, which the daily merge
+  job merges once the build passes. That merge is a patch release like any other, and the history shows
+  which package version entered when.
 
 > **Risk:** if a dependency is itself vulnerable or compromised, that is shipped automatically as well,
 > before anyone has looked at it.
